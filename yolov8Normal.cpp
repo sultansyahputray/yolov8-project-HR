@@ -4,6 +4,7 @@
 
 #include <string.h>
 #include <time.h>
+#include <chrono>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -15,6 +16,27 @@ using namespace std;
 using namespace cv;
 
 double fps;
+
+std::chrono::time_point<std::chrono::system_clock> lastCollisionTimeHR, lastCollisionTimeRR;
+int collisionCount = 0;
+
+bool hasCollided = false;  
+
+void calculateHR(float durationInSeconds) {
+  if (durationInSeconds > 0) {
+      float hr = 60.0 / durationInSeconds;  
+      std::cout << durationInSeconds << std::endl;
+      std::cout << "Average HR = " << hr << std::endl;  
+  }
+}
+
+void calculateRR(float durationInSeconds) {
+  if (durationInSeconds > 0) {
+        float rr = 60.0 / durationInSeconds;  
+        std::cout << (durationInSeconds) << std::endl;
+        std::cout << "Average RR = " << rr << std::endl;
+    }
+}
 
 struct TimeCounter {
   public:
@@ -63,12 +85,12 @@ int getBinaryPeak(cv::Mat& roi){
 int main(int argc, char **argv)
 {
   TimeCounter time;
-  VideoCapture cap("/home/eros/project_HR/sample.mp4");
+  VideoCapture cap("/home/eros/project_HR/40sample.mp4");
 
   bool runOnGPU = false;
   
-  int m_size = 480; // config["size"].as<int>();
-  std::string model_path = "/home/eros/project_HR/HR.onnx"; // config["model"].as<std::string>();
+  int m_size = 480;
+  std::string model_path = "/home/eros/project_HR/HR.onnx";
   
   // int whiteBalanceValue = 4600;
   // namedWindow("WBT", WINDOW_GUI_NORMAL);
@@ -82,10 +104,7 @@ int main(int argc, char **argv)
 
   Detection peak_;
 
-  bool hasCollided = false;  // Flag to track if the collision has already happened
-
   double ms, fpsLive;
-  
   
   while (true)
   {
@@ -128,8 +147,33 @@ int main(int argc, char **argv)
         
         // tabrakan
         if (!hasCollided && peak_.box.x <= line && peak_.box.x + peak_.box.width >= line) {
-          cout << "Koordinat Pojok Kiri Atas: (" << peak_.box.x << ", " << peak_.box.y << ") ";
+          cout << "Koordinat Pojok Kiri Atas: (" << peak_.box.x << ", " << peak_.box.y << ") " << endl;
+
+          auto currentCollisionTime = std::chrono::system_clock::now();
+
+          if (collisionCount == 0) {
+            lastCollisionTimeHR = currentCollisionTime;
+            lastCollisionTimeRR = currentCollisionTime;
+          } 
+          
+          else {
+            std::chrono::duration<float> durationHR = currentCollisionTime - lastCollisionTimeHR;
+            float durationInSecondsHR = durationHR.count();
+            calculateHR(durationInSecondsHR); 
+            lastCollisionTimeHR = currentCollisionTime; 
+
+            if (collisionCount % 2 == 0) {
+                std::chrono::duration<float> durationRR = currentCollisionTime - lastCollisionTimeRR;
+                float durationInSecondsRR = durationRR.count();
+                calculateRR(durationInSecondsRR);
+                lastCollisionTimeRR = currentCollisionTime;
+            }
+          }
+          
           hasCollided = true;
+
+          collisionCount++;
+
           cv::Mat roi = frame(peak_.box);
           cv::cvtColor(roi, roi, cv::COLOR_BGR2GRAY);
           
@@ -157,11 +201,8 @@ int main(int argc, char **argv)
       }
     }
     
-    
-    // Inference ends here...
     end = clock();
-    
-    // This is only for preview purposes
+
     float scale = 0.8;
     cv::resize(frame, frame, cv::Size(frame.cols * scale, frame.rows * scale));
     double sc = (double(end) - double(start)) / double(CLOCKS_PER_SEC);
