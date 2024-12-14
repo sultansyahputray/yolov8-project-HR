@@ -85,12 +85,17 @@ int getBinaryPeak(cv::Mat& roi){
 int main(int argc, char **argv)
 {
   TimeCounter time;
-  VideoCapture cap("/home/eros/project_HR/40sample.mp4");
+  VideoCapture cap("/home/eros/projek_HR/samples/200sample.mp4");
+
+  if(!cap.isOpened()){
+    std::cout<<"gabisa buka"<<std::endl;
+    return -1;
+  }
 
   bool runOnGPU = false;
   
   int m_size = 480;
-  std::string model_path = "/home/eros/project_HR/HR.onnx";
+  std::string model_path = "/home/eros/models/80.onnx";
   
   // int whiteBalanceValue = 4600;
   // namedWindow("WBT", WINDOW_GUI_NORMAL);
@@ -120,6 +125,11 @@ int main(int argc, char **argv)
     
     cv::Mat frame; // = cv::imread(cap);
     cap >> frame;
+
+    int newWidth = 720;
+    int newHeight = static_cast<int>((newWidth * frame.rows) / frame.cols);
+    cv::resize(frame, frame, cv::Size(newWidth, newHeight));
+
     // Inference starts here...
     std::vector<Detection> output = inf.runInference(frame);
     
@@ -132,14 +142,14 @@ int main(int argc, char **argv)
       cv::Rect box = detection.box;
       cv::Scalar color = detection.color;
       
-      cv::rectangle(frameClone, box, color, 2);
+      cv::rectangle(frameClone, box, (detection.class_id == 1) ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 0, 255), 2);
       // Detection box text
-      std::string classString = detection.className + ' ' + std::to_string(detection.confidence).substr(0, 4);
-      cv::Size textSize = cv::getTextSize(classString, cv::FONT_HERSHEY_DUPLEX, 1, 2, 0);
-      cv::Rect textBox(box.x, box.y - 40, textSize.width + 10, textSize.height + 20);
+      // std::string classString = detection.className + ' ' + std::to_string(detection.confidence).substr(0, 4);
+      // cv::Size textSize = cv::getTextSize(classString, cv::FONT_HERSHEY_DUPLEX, 1, 2, 0);
+      // cv::Rect textBox(box.x, box.y - 40, textSize.width + 10, textSize.height + 20);
       
-      cv::rectangle(frameClone, textBox, color, cv::FILLED);
-      cv::putText(frameClone, classString, cv::Point(box.x + 5, box.y - 10), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar(0, 0, 0), 2, 0);
+      // cv::rectangle(frameClone, textBox, color, cv::FILLED);
+      // cv::putText(frameClone, classString, cv::Point(box.x + 5, box.y - 10), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar(0, 0, 0), 2, 0);
       
       cv::line(frameClone, cv::Point2f(line, 0), cv::Point2f(line, frameClone.rows - 1), cv::Scalar(0, 255, 0), 1);
       if (output[i].class_id == 1) {

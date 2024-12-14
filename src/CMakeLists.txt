@@ -19,3 +19,10 @@ target_link_libraries(test
 ${OpenCV_LIBS}
 Threads::Threads  # Link with Threads library
 )
+
+add_executable(optflow optflow.cpp inference.cpp)
+target_link_libraries(optflow
+${OpenCV_LIBS}
+Threads::Threads  # Link with Threads library
+)
+
