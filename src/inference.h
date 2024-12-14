@@ -14,6 +14,7 @@
 
 struct Detection
 {
+    bool isCount;
     int class_id{0};
     std::string className{};
     float confidence{0.0};
@@ -40,9 +41,9 @@ private:
 
     cv::Size2f modelShape{};
 
-    float modelConfidenceThreshold {0.25};
-    float modelScoreThreshold      {0.25};
-    float modelNMSThreshold        {0.25};
+    float modelConfidenceThreshold {0.3};
+    float modelScoreThreshold      {0.3};
+    float modelNMSThreshold        {0.3};
 
     bool letterBoxForSquare = true;
 
