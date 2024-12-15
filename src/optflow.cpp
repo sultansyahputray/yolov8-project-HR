@@ -77,13 +77,15 @@ int main(int argc, char **argv)
 
     int hitung=0;
 
+    int skiper = 0;
+
     while(true)
     {   
         if(time.Count() >= 1){
             // fprintf(stderr, "FPS >> %d\n\n", num_frames);
             num_frames = 0;
             time.Reset();
-	    }
+	      }
         num_frames++;
         start=clock(); 
 	
@@ -104,20 +106,32 @@ int main(int argc, char **argv)
         cv::Mat frameClone = frame.clone();
         cv::line(frameClone, cv::Point2f(threshold, 0), cv::Point2f(threshold, frameClone.rows - 1), cv::Scalar(0, 255, 0), 1);
         bool temp;
+        skiper++;
+        if(skiper % 2 == 0){
+          continue;
+        }
         for (int i = 0; i < detections; ++i){
             Detection detection = output[i];
 
             cv::Rect box = detection.box;
             cv::Scalar color = detection.color;
-            detection.isCount = isCounting(threshold, detection.box.x, detection.box.x + detection.box.width); 
-            temp = detection.isCount;
+            detection.isCount = (detection.class_id == 1) ? isCounting(threshold, detection.box.x, detection.box.x + detection.box.width) : false; 
+            
+            if(!detection.isCount && toggle){
+                hitung++;
+                toggle = false;
+            }else if(detection.isCount && !toggle){
+                toggle = true;
+            }
             // Detection box
             if(detection.class_id == 0){
                 cv::rectangle(frameClone, box, cv::Scalar(0, 0, 255), 2);
             }else{
                 cv::rectangle(frameClone, box, (detection.isCount) ? cv::Scalar(0, 255, 0) : cv::Scalar(255, 0, 0), 2);
             }
-            std::cout<<((detection.isCount) ? "true":"false")<<std::endl;
+            std::cout<<hitung<<std::endl;
+            // std::cout<<((detection.isCount) ? "true":"false")<<std::endl;
+
         }
         // Inference ends here...
         end=clock();
