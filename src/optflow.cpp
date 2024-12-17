@@ -71,13 +71,15 @@ int main(int argc, char **argv)
 
     double ms,fpsLive;
 
-    int threshold = 400;
+    int threshold = 200;
 
     bool toggle=false;
 
     int hitung=0;
 
     int skiper = 0;
+
+    // cv::Mat blackMat;
 
     while(true)
     {   
@@ -90,7 +92,7 @@ int main(int argc, char **argv)
         start=clock(); 
 	
         fps=cap.get(CAP_PROP_FPS);
-        // string str=to_string(fps);
+        string str=to_string(hitung);
         // cout<<fps<<endl;
         
         cv::Mat frame;
@@ -98,18 +100,14 @@ int main(int argc, char **argv)
         
         std::vector<Detection> output = inf.runInference(frame);
 
-        // cv::putText(frame, str, Point(20, 20), FONT_HERSHEY_DUPLEX,1, Scalar(255, 0, 0),2, 0);
+        cv::putText(frame, str, Point(20, 30), FONT_HERSHEY_DUPLEX,1, Scalar(170, 0, 170),2, 0);
 
         int detections = output.size();
         // std::cout << "Number of detections:" << detections;
         
         cv::Mat frameClone = frame.clone();
         cv::line(frameClone, cv::Point2f(threshold, 0), cv::Point2f(threshold, frameClone.rows - 1), cv::Scalar(0, 255, 0), 1);
-        bool temp;
-        skiper++;
-        if(skiper % 2 == 0){
-          continue;
-        }
+      
         for (int i = 0; i < detections; ++i){
             Detection detection = output[i];
 
@@ -117,11 +115,16 @@ int main(int argc, char **argv)
             cv::Scalar color = detection.color;
             detection.isCount = (detection.class_id == 1) ? isCounting(threshold, detection.box.x, detection.box.x + detection.box.width) : false; 
             
-            if(!detection.isCount && toggle){
-                hitung++;
+
+            
+            if(detection.box.x <= threshold && detection.box.x + detection.box.width > threshold){
+              if(detection.class_id == 1 && toggle){
                 toggle = false;
-            }else if(detection.isCount && !toggle){
+                hitung++;
+              }
+              if(detection.class_id == 0){
                 toggle = true;
+              }
             }
             // Detection box
             if(detection.class_id == 0){
@@ -130,13 +133,12 @@ int main(int argc, char **argv)
                 cv::rectangle(frameClone, box, (detection.isCount) ? cv::Scalar(0, 255, 0) : cv::Scalar(255, 0, 0), 2);
             }
             std::cout<<hitung<<std::endl;
-            // std::cout<<((detection.isCount) ? "true":"false")<<std::endl;
 
         }
         // Inference ends here...
         end=clock();
         // This is only for preview purposes
-        float scale = 0.8;
+        float scale = 0.5;
         cv::resize(frameClone, frameClone, cv::Size(frameClone.cols*scale, frameClone.rows*scale));
 
         double sc=(double(end)-double(start))/double(CLOCKS_PER_SEC);
@@ -144,7 +146,6 @@ int main(int argc, char **argv)
         // cout<<"\t"<<fpsLive<<endl;
 
         cv::imshow("Inference", frameClone);
-        // cv::imshow("mask", mask);
     
         if(waitKey(1)==27)break;
     }
