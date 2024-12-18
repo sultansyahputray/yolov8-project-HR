@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.8)
 project(seat C CXX)
 
 find_package(OpenCV REQUIRED)
+find_package(X11 REQUIRED)  # Tambahkan ini untuk menemukan library X11
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -16,13 +17,14 @@ include_directories(${PROJECT_SOURCE_DIR})
 
 add_executable(test yolov8Normal.cpp inference.cpp)
 target_link_libraries(test
-${OpenCV_LIBS}
-Threads::Threads  # Link with Threads library
+    ${OpenCV_LIBS}
+    Threads::Threads  # Link dengan Threads library
+    X11  # Link dengan X11 library
 )
 
 add_executable(optflow optflow.cpp inference.cpp)
 target_link_libraries(optflow
-${OpenCV_LIBS}
-Threads::Threads  # Link with Threads library
+    ${OpenCV_LIBS}
+    Threads::Threads  # Link dengan Threads library
+    X11  # Link dengan X11 library
 )
-
