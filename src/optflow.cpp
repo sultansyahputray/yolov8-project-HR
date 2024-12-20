@@ -16,6 +16,8 @@ using namespace cv;
 
 double fps;
 
+int HR_, RR_;
+
 std::chrono::time_point<std::chrono::system_clock> lastCollisionTimeHR, lastCollisionTimeRR;
 int collisionCount = 0;
 
@@ -25,15 +27,15 @@ bool isCounting(int threshold, int a, int b) {
 
 void calculateHR(float durationInSeconds) {
     if (durationInSeconds > 0) {
-        float hr = 60.0 / durationInSeconds;  
-        std::cout << "Average HR = " << hr << std::endl;  
+        HR_ = 60.0 / durationInSeconds;  
+        std::cout << "Average HR = " << HR_ << std::endl;  
     }
 }
 
 void calculateRR(float durationInSeconds) {
     if (durationInSeconds > 0) {
-        float rr = 60.0 / durationInSeconds;  
-        std::cout << "Average RR = " << rr << std::endl;
+        RR_ = 60.0 / durationInSeconds;  
+        std::cout << "Average RR = " << RR_ << std::endl;
     }
 }
 
@@ -104,7 +106,7 @@ int main(int argc, char **argv) {
 
     bool runOnGPU = false;
 
-    std::string model_path = "/home/eros/models/80.onnx";
+    std::string model_path = "/home/eros/yolov8-project-HR-main/src/80.onnx";
     int m_size = 480;
     Inference inf(model_path, cv::Size(m_size, m_size), "classes.txt", runOnGPU);
 
@@ -138,7 +140,13 @@ int main(int argc, char **argv) {
 
         std::vector<Detection> output = inf.runInference(frame);
 
-        cv::putText(frame, to_string(hitung), Point(20, 30), FONT_HERSHEY_DUPLEX, 1, Scalar(170, 0, 170), 2, 0);
+        std::string peak = "jumlah peak : " + std::to_string(hitung); 
+        std::string displayHR = "HR : " + std::to_string(HR_); 
+        std::string displayRR = "RR : " + std::to_string(RR_); 
+
+        cv::putText(frame, peak, Point(20, 30), FONT_HERSHEY_DUPLEX, 1, Scalar(170, 0, 170), 2, 0);
+        cv::putText(frame, displayHR, Point(400, 30), FONT_HERSHEY_DUPLEX, 1, Scalar(170, 0, 170), 2, 0);
+        cv::putText(frame, displayRR, Point(600, 30), FONT_HERSHEY_DUPLEX, 1, Scalar(170, 0, 170), 2, 0);
 
         int detections = output.size();
 
