@@ -3,6 +3,7 @@
 #include <getopt.h>
 #include <string.h>
 #include <time.h>
+#include <bits/stdc++.h>
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -15,8 +16,10 @@ using namespace std;
 using namespace cv;
 
 double fps;
-
+cv::Mat rr_mat;
 int HR_, RR_;
+
+std::vector<int> respiration_rates;
 
 std::chrono::time_point<std::chrono::system_clock> lastCollisionTimeHR, lastCollisionTimeRR;
 int collisionCount = 0;
@@ -36,6 +39,25 @@ void calculateRR(float durationInSeconds) {
     if (durationInSeconds > 0) {
         RR_ = 60.0 / durationInSeconds;  
         std::cout << "Average RR = " << RR_ << std::endl;
+    }
+}
+
+void drawRR(std::vector<int>& dots, cv::Mat& canvas){
+    auto p = std::minmax_element(dots.begin(), dots.end());
+
+    int x_length = canvas.cols / (dots.size() + 1);
+    int y_length = canvas.rows / (*p.second - *p.first + 2);
+
+    for(int i = 0;i < dots.size();i++){
+        int x_pos = x_length * (i + 1);
+        int y_pos = canvas.rows - (y_length * dots[i]);
+
+        cv::circle(canvas, cv::Point(x_pos, y_pos), 1, cv::Scalar(0, 255, 0), -1);
+        
+        if(i < dots.size() - 1){
+            cv::Point next = cv::Point(x_pos + x_length, canvas.rows - (y_length * dots[i+1]));
+            cv::line(canvas, cv::Point(x_pos, y_pos), next, cv::Scalar(255, 0, 0), 1);
+        }
     }
 }
 
@@ -104,9 +126,11 @@ cv::Mat captureScreen(Window windowID) {
 int main(int argc, char **argv) {
     TimeCounter time;
 
-    bool runOnGPU = false;
+    // init RR
+    respiration_rates.push_back(0);  
 
-    std::string model_path = "/home/eros/yolov8-project-HR-main/src/80.onnx";
+    bool runOnGPU = false;
+    std::string model_path = "/home/eros/project_HR/model/80.onnx";
     int m_size = 480;
     Inference inf(model_path, cv::Size(m_size, m_size), "classes.txt", runOnGPU);
 
@@ -117,13 +141,18 @@ int main(int argc, char **argv) {
     bool toggle = false;
     int hitung = 0;
 
+    cv::VideoCapture cap;
+    // Ambil window ID dari argumen input
+    Window windowID;
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <window_id>" << std::endl;
-        return 1;
+        // std::cerr << "Usage: " << argv[0] << " <window_id>" << std::endl;
+        // return 1;
+        cap = cv::VideoCapture("/home/eros/project_HR/sample/80sample.mp4");
+
+    }else{
+        windowID = (Window)strtol(argv[1], nullptr, 16);
     }
 
-    // Ambil window ID dari argumen input
-    Window windowID = (Window)strtol(argv[1], nullptr, 16);
 
     while(true) {   
         if(time.Count() >= 1) {
@@ -136,7 +165,12 @@ int main(int argc, char **argv) {
         fps = 30;  // Tentukan FPS atau bisa ditangkap dari `captureScreen`
 
         // Tangkap layar dari window tertentu
-        cv::Mat frame = captureScreen(windowID);  
+        cv::Mat frame;
+        if (argc < 2) {
+            cap >> frame;  // Capture frame from the video.
+        } else {
+            frame = captureScreen(windowID);  // Capture screen based on windowID.
+        }
 
         std::vector<Detection> output = inf.runInference(frame);
 
@@ -181,6 +215,7 @@ int main(int argc, char **argv) {
                             float durationInSecondsRR = durationRR.count();
                             calculateRR(durationInSecondsRR);
                             lastCollisionTimeRR = currentCollisionTime;
+                            respiration_rates.push_back(RR_);
                         }
                     }
 
@@ -197,17 +232,28 @@ int main(int argc, char **argv) {
             } else {
                 cv::rectangle(frameClone, box, (detection.isCount) ? cv::Scalar(0, 255, 0) : cv::Scalar(255, 0, 0), 2);
             }
-            std::cout << hitung << std::endl;
+            // std::cout << hitung << std::endl;
         }
 
         end = clock();
         float scale = 0.5;
         cv::resize(frameClone, frameClone, cv::Size(frameClone.cols*scale, frameClone.rows*scale));
 
+        rr_mat = cv::Mat::zeros(cv::Size(frameClone.cols, frameClone.rows / 2), frameClone.type());
+
+        if(respiration_rates.size() != 0){
+            drawRR(respiration_rates, rr_mat);
+        }
+
         double sc = (double(end) - double(start)) / double(CLOCKS_PER_SEC);
         fpsLive = double(num_frames) / double(sc);
 
-        cv::imshow("Inference", frameClone);
+        cv::Mat combine;
+        cv::vconcat(frameClone, rr_mat, combine);
+
+        // cv::imshow("Inference", frameClone);
+        // cv::imshow("RR", rr_mat);
+        cv::imshow("Inference", combine);
 
         if(waitKey(1) == 27) break;
     }
