@@ -42,50 +42,44 @@ void calculateRR(float durationInSeconds) {
     }
 }
 
-void drawRR(std::vector<int>& dots, cv::Mat& canvas){
+void updateRespirationRates(std::vector<int>& respiration_rates, int newRate, bool& isNewData) {
+    // Jika ada data baru, tambahkan ke vector
+    if (isNewData) {
+        respiration_rates.push_back(newRate);
+
+        // Hapus elemen pertama jika vector lebih dari ukuran tertentu
+        if (respiration_rates.size() > 100) {
+            respiration_rates.erase(respiration_rates.begin());
+        }
+    }
+
+    // Tandai jika data baru diterima
+    isNewData = false;
+}
+
+void drawRR(std::vector<int>& dots, cv::Mat& canvas, bool hasNewData) {
     auto p = std::minmax_element(dots.begin(), dots.end());
 
     int x_length = canvas.cols / (dots.size() + 1);
     int y_length = canvas.rows / (*p.second - *p.first + 2);
 
-    for(int i = 0;i < dots.size();i++){
+    // Jika tidak ada data baru, hanya geser titik-titik yang ada
+    if (!hasNewData) {
+        std::rotate(dots.begin(), dots.begin() + 1, dots.end()); 
+    }
+
+    for(int i = 0; i < dots.size(); i++){
         int x_pos = x_length * (i + 1);
         int y_pos = canvas.rows - (y_length * dots[i]);
 
         cv::circle(canvas, cv::Point(x_pos, y_pos), 1, cv::Scalar(0, 255, 0), -1);
-        
+
         if(i < dots.size() - 1){
-            cv::Point next = cv::Point(x_pos + x_length, canvas.rows - (y_length * dots[i+1]));
+            cv::Point next = cv::Point(x_pos + x_length, canvas.rows - (y_length * dots[i + 1]));
             cv::line(canvas, cv::Point(x_pos, y_pos), next, cv::Scalar(255, 0, 0), 1);
         }
     }
 }
-
-struct TimeCounter {
-    public:
-    TimeCounter() : reset(true) {}
-  
-    float Count() {
-        if (reset) {
-            previous_time   = std::chrono::system_clock::now();
-            reset = false;
-        }
-
-        current_time = std::chrono::system_clock::now();
-        elapsed_time = current_time - previous_time;
-
-        return elapsed_time.count();
-    }
-
-    void Reset() { 
-        reset = true; 
-    }
-
-  private:
-    std::chrono::time_point<std::chrono::system_clock> current_time, previous_time;
-    std::chrono::duration<float> elapsed_time;
-    bool reset;
-};
 
 // Fungsi untuk menangkap gambar dari window tertentu berdasarkan window ID
 cv::Mat captureScreen(Window windowID) {
@@ -123,14 +117,57 @@ cv::Mat captureScreen(Window windowID) {
     return bgrMat;
 }
 
+struct TimeCounter {
+    public:
+    TimeCounter() : reset(true) {}
+  
+    float Count() {
+        if (reset) {
+            previous_time   = std::chrono::system_clock::now();
+            reset = false;
+        }
+
+        current_time = std::chrono::system_clock::now();
+        elapsed_time = current_time - previous_time;
+
+        return elapsed_time.count();
+    }
+
+    void Reset() { 
+        reset = true; 
+    }
+
+  private:
+    std::chrono::time_point<std::chrono::system_clock> current_time, previous_time;
+    std::chrono::duration<float> elapsed_time;
+    bool reset;
+};
+
+std::chrono::duration<float> maxInactiveDuration = std::chrono::seconds(5);  // Batas waktu 10 detik tanpa update
+
+void checkAndResetRespirationRates() {
+    // Menghitung selisih waktu antara waktu tabrakan terakhir HR dan saat ini
+    auto currentCollisionTime = std::chrono::system_clock::now();
+
+    std::chrono::duration<float> durationSinceHR = currentCollisionTime - lastCollisionTimeHR;
+    std::chrono::duration<float> durationSinceRR = currentCollisionTime - lastCollisionTimeRR;
+
+    // reset respiration_rates
+    if (durationSinceHR > maxInactiveDuration && durationSinceRR > maxInactiveDuration) {
+        respiration_rates.clear();  // Menghapus semua data dalam respiration_rates
+        std::cout << "Respiration rates reset due to inactivity over 10 seconds." << std::endl;
+    }
+}
+
 int main(int argc, char **argv) {
     TimeCounter time;
+    bool isNewData = false;  // Menandakan apakah ada data baru
 
     // init RR
     respiration_rates.push_back(0);  
 
     bool runOnGPU = false;
-    std::string model_path = "/home/eros/project_HR/model/80.onnx";
+    std::string model_path = "/home/eros/Downloads/yolov8-project-HR/src/80.onnx";
     int m_size = 480;
     Inference inf(model_path, cv::Size(m_size, m_size), "classes.txt", runOnGPU);
 
@@ -145,14 +182,12 @@ int main(int argc, char **argv) {
     // Ambil window ID dari argumen input
     Window windowID;
     if (argc < 2) {
-        // std::cerr << "Usage: " << argv[0] << " <window_id>" << std::endl;
-        // return 1;
         cap = cv::VideoCapture("/home/eros/project_HR/sample/80sample.mp4");
-
-    }else{
+    } else {
         windowID = (Window)strtol(argv[1], nullptr, 16);
     }
 
+    std::chrono::time_point<std::chrono::system_clock> lastUpdateTime = std::chrono::system_clock::now();
 
     while(true) {   
         if(time.Count() >= 1) {
@@ -215,7 +250,6 @@ int main(int argc, char **argv) {
                             float durationInSecondsRR = durationRR.count();
                             calculateRR(durationInSecondsRR);
                             lastCollisionTimeRR = currentCollisionTime;
-                            respiration_rates.push_back(RR_);
                         }
                     }
 
@@ -232,7 +266,6 @@ int main(int argc, char **argv) {
             } else {
                 cv::rectangle(frameClone, box, (detection.isCount) ? cv::Scalar(0, 255, 0) : cv::Scalar(255, 0, 0), 2);
             }
-            // std::cout << hitung << std::endl;
         }
 
         end = clock();
@@ -241,8 +274,21 @@ int main(int argc, char **argv) {
 
         rr_mat = cv::Mat::zeros(cv::Size(frameClone.cols, frameClone.rows / 2), frameClone.type());
 
-        if(respiration_rates.size() != 0){
-            drawRR(respiration_rates, rr_mat);
+        // Update respiration rates every 0.1 seconds
+        auto currentTime = std::chrono::system_clock::now();
+        std::chrono::duration<float> elapsed = currentTime - lastUpdateTime;
+
+        if (elapsed.count() >= 0.1) {
+            // Set isNewData flag to true if RR data has changed
+            isNewData = true;
+            updateRespirationRates(respiration_rates, RR_, isNewData);
+            lastUpdateTime = currentTime;
+        }
+
+        checkAndResetRespirationRates();
+
+        if (respiration_rates.size() != 0) {
+            drawRR(respiration_rates, rr_mat, isNewData);
         }
 
         double sc = (double(end) - double(start)) / double(CLOCKS_PER_SEC);
@@ -251,8 +297,6 @@ int main(int argc, char **argv) {
         cv::Mat combine;
         cv::vconcat(frameClone, rr_mat, combine);
 
-        // cv::imshow("Inference", frameClone);
-        // cv::imshow("RR", rr_mat);
         cv::imshow("Inference", combine);
 
         if(waitKey(1) == 27) break;

@@ -28,3 +28,4 @@ target_link_libraries(optflow
     Threads::Threads  # Link dengan Threads library
     X11  # Link dengan X11 library
 )
+

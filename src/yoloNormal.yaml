@@ -1,2 +1,2 @@
-model: '/home/eros/Downloads/project_HR/HR.onnx'
+model: '/home/eros/Downloads/yolov8-project-HR/src/HR.onnx'
 size: 480
