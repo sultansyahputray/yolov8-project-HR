@@ -22,8 +22,22 @@ target_link_libraries(test
     X11  # Link dengan X11 library
 )
 
-add_executable(optflow optflow.cpp inference.cpp)
-target_link_libraries(optflow
+add_executable(both both.cpp inference.cpp)
+target_link_libraries(both
+    ${OpenCV_LIBS}
+    Threads::Threads  # Link dengan Threads library
+    X11  # Link dengan X11 library
+)
+
+add_executable(HR hr.cpp inference.cpp)
+target_link_libraries(HR
+    ${OpenCV_LIBS}
+    Threads::Threads  # Link dengan Threads library
+    X11  # Link dengan X11 library
+)
+
+add_executable(RR rr.cpp inference.cpp)
+target_link_libraries(RR
     ${OpenCV_LIBS}
     Threads::Threads  # Link dengan Threads library
     X11  # Link dengan X11 library

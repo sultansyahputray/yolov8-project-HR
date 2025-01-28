@@ -16,20 +16,13 @@ using namespace cv;
 
 double fps;
 
-int HR_, RR_;
+int RR_;
 
 std::chrono::time_point<std::chrono::system_clock> lastCollisionTimeHR, lastCollisionTimeRR;
 int collisionCount = 0;
 
 bool isCounting(int threshold, int a, int b) {
     return a <= threshold && b >= threshold; 
-}
-
-void calculateHR(float durationInSeconds) {
-    if (durationInSeconds > 0) {
-        HR_ = 60.0 / durationInSeconds;  
-        std::cout << "Average HR = " << HR_ << std::endl;  
-    }
 }
 
 void calculateRR(float durationInSeconds) {
@@ -106,7 +99,7 @@ int main(int argc, char **argv) {
 
     bool runOnGPU = false;
 
-    std::string model_path = "/home/eros/yolov8-project-HR-main/src/80.onnx";
+    std::string model_path = "/home/eros/Downloads/yolov8-project-HR/src/HR.onnx";
     int m_size = 480;
     Inference inf(model_path, cv::Size(m_size, m_size), "classes.txt", runOnGPU);
 
@@ -133,20 +126,18 @@ int main(int argc, char **argv) {
         num_frames++;
         start = clock(); 
         
-        fps = 30;  // Tentukan FPS atau bisa ditangkap dari `captureScreen`
+        fps = 30;  // Tentukan FPS atau bisa ditangkap dari captureScreen
 
         // Tangkap layar dari window tertentu
         cv::Mat frame = captureScreen(windowID);  
 
         std::vector<Detection> output = inf.runInference(frame);
 
-        std::string peak = "jumlah peak : " + std::to_string(hitung); 
-        std::string displayHR = "HR : " + std::to_string(HR_); 
+        std::string peak = "jumlah peak : " + std::to_string(hitung);  
         std::string displayRR = "RR : " + std::to_string(RR_); 
 
         cv::putText(frame, peak, Point(20, 30), FONT_HERSHEY_DUPLEX, 1, Scalar(170, 0, 170), 2, 0);
-        cv::putText(frame, displayHR, Point(400, 30), FONT_HERSHEY_DUPLEX, 1, Scalar(170, 0, 170), 2, 0);
-        cv::putText(frame, displayRR, Point(600, 30), FONT_HERSHEY_DUPLEX, 1, Scalar(170, 0, 170), 2, 0);
+        cv::putText(frame, displayRR, Point(400, 30), FONT_HERSHEY_DUPLEX, 1, Scalar(170, 0, 170), 2, 0);
 
         int detections = output.size();
 
@@ -171,17 +162,10 @@ int main(int argc, char **argv) {
                         lastCollisionTimeHR = currentCollisionTime;
                         lastCollisionTimeRR = currentCollisionTime;
                     } else {
-                        std::chrono::duration<float> durationHR = currentCollisionTime - lastCollisionTimeHR;
-                        float durationInSecondsHR = durationHR.count();
-                        calculateHR(durationInSecondsHR); 
-                        lastCollisionTimeHR = currentCollisionTime; 
-
-                        if (collisionCount % 2 == 0) {
-                            std::chrono::duration<float> durationRR = currentCollisionTime - lastCollisionTimeRR;
-                            float durationInSecondsRR = durationRR.count();
-                            calculateRR(durationInSecondsRR);
-                            lastCollisionTimeRR = currentCollisionTime;
-                        }
+                        std::chrono::duration<float> durationRR = currentCollisionTime - lastCollisionTimeRR;
+                        float durationInSecondsRR = durationRR.count();
+                        calculateRR(durationInSecondsRR); 
+                        lastCollisionTimeRR = currentCollisionTime; 
                     }
 
                     collisionCount++;
