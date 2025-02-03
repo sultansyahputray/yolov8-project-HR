@@ -15,20 +15,21 @@ using namespace std;
 using namespace cv;
 
 double fps;
-
 int RR_;
 
 std::chrono::time_point<std::chrono::system_clock> lastCollisionTimeHR, lastCollisionTimeRR;
 int collisionCount = 0;
+bool detectingPeak = false;
+int peakCount = 0;
 
 bool isCounting(int threshold, int a, int b) {
     return a <= threshold && b >= threshold; 
 }
 
-void calculateRR(float durationInSeconds) {
+void calculateRR(float durationInSeconds, int &RR) {
     if (durationInSeconds > 0) {
-        RR_ = 60.0 / durationInSeconds;  
-        std::cout << "Average RR = " << RR_ << std::endl;
+        RR = 60.0 / durationInSeconds;  
+        std::cout << "Average RR = " << RR << std::endl;
     }
 }
 
@@ -58,7 +59,6 @@ struct TimeCounter {
     bool reset;
 };
 
-// Fungsi untuk menangkap gambar dari window tertentu berdasarkan window ID
 cv::Mat captureScreen(Window windowID) {
     Display* display = XOpenDisplay(NULL);
     if (display == NULL) {
@@ -66,28 +66,23 @@ cv::Mat captureScreen(Window windowID) {
         exit(1);
     }
 
-    // Ambil ukuran jendela yang ingin di-capture
     XWindowAttributes windowAttributes;
     XGetWindowAttributes(display, windowID, &windowAttributes);
     int width = windowAttributes.width;
     int height = windowAttributes.height;
 
-    // Tangkap gambar dari window tertentu
     XImage* image = XGetImage(display, windowID, 0, 0, width, height, AllPlanes, ZPixmap);
     if (!image) {
         std::cerr << "Gagal menangkap jendela!" << std::endl;
         exit(1);
     }
 
-    // Salin data dari XImage ke OpenCV Mat
     cv::Mat screenMat(height, width, CV_8UC4);
     memcpy(screenMat.data, image->data, height * width * 4);
 
-    // Hapus XImage setelah digunakan
     XDestroyImage(image);
     XCloseDisplay(display);
 
-    // Konversi dari format BGRA ke BGR (OpenCV menggunakan BGR)
     cv::Mat bgrMat;
     cv::cvtColor(screenMat, bgrMat, cv::COLOR_BGRA2BGR);
 
@@ -96,11 +91,9 @@ cv::Mat captureScreen(Window windowID) {
 
 int main(int argc, char **argv) {
     TimeCounter time;
-
     bool runOnGPU = false;
-
-    std::string model_path = "/home/eros/Downloads/yolov8-project-HR/src/HR.onnx";
-    int m_size = 480;
+    std::string model_path = "/home/eros/Downloads/yolov8-project-HR/src/LajuPernapasan.onnx";
+    int m_size = 320;
     Inference inf(model_path, cv::Size(m_size, m_size), "classes.txt", runOnGPU);
 
     int num_frames = 0;
@@ -115,7 +108,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // Ambil window ID dari argumen input
     Window windowID = (Window)strtol(argv[1], nullptr, 16);
 
     while(true) {   
@@ -125,72 +117,50 @@ int main(int argc, char **argv) {
         }
         num_frames++;
         start = clock(); 
-        
-        fps = 30;  // Tentukan FPS atau bisa ditangkap dari captureScreen
-
-        // Tangkap layar dari window tertentu
+        fps = 30;  
         cv::Mat frame = captureScreen(windowID);  
-
         std::vector<Detection> output = inf.runInference(frame);
 
-        std::string peak = "jumlah peak : " + std::to_string(hitung);  
+        std::string peak = "Jumlah Peak : " + std::to_string(peakCount);  
         std::string displayRR = "RR : " + std::to_string(RR_); 
-
         cv::putText(frame, peak, Point(20, 30), FONT_HERSHEY_DUPLEX, 1, Scalar(170, 0, 170), 2, 0);
         cv::putText(frame, displayRR, Point(400, 30), FONT_HERSHEY_DUPLEX, 1, Scalar(170, 0, 170), 2, 0);
 
         int detections = output.size();
-
         cv::Mat frameClone = frame.clone();
-        cv::line(frameClone, cv::Point2f(threshold, 0), cv::Point2f(threshold, frameClone.rows - 1), cv::Scalar(0, 255, 0), 1);
-      
+
+        bool foundPeak = false;
         for (int i = 0; i < detections; ++i) {
             Detection detection = output[i];
-
             cv::Rect box = detection.box;
-            cv::Scalar color = detection.color;
-            detection.isCount = (detection.class_id == 1) ? isCounting(threshold, detection.box.x, detection.box.x + detection.box.width) : false; 
-
-            if(detection.box.x <= threshold && detection.box.x + detection.box.width > threshold) {
-                if(detection.class_id == 1 && toggle) {
-                    toggle = false;
-                    hitung++;
-
-                    auto currentCollisionTime = std::chrono::system_clock::now();
-
-                    if (collisionCount == 0) {
-                        lastCollisionTimeHR = currentCollisionTime;
-                        lastCollisionTimeRR = currentCollisionTime;
-                    } else {
-                        std::chrono::duration<float> durationRR = currentCollisionTime - lastCollisionTimeRR;
-                        float durationInSecondsRR = durationRR.count();
-                        calculateRR(durationInSecondsRR); 
-                        lastCollisionTimeRR = currentCollisionTime; 
-                    }
-
-                    collisionCount++;
-                }
-
-                if(detection.class_id == 0) {
-                    toggle = true;
-                }
+            if (detection.class_id == 1) {
+                foundPeak = true;
+                cv::rectangle(frameClone, box, Scalar(0, 255, 0), 2);
+            } else if (detection.class_id == 0) {
+                foundPeak = false;
+                cv::rectangle(frameClone, box, Scalar(255, 0, 0), 2);
             }
+        }
 
-            if(detection.class_id == 0) {
-                cv::rectangle(frameClone, box, cv::Scalar(0, 0, 255), 2);
-            } else {
-                cv::rectangle(frameClone, box, (detection.isCount) ? cv::Scalar(0, 255, 0) : cv::Scalar(255, 0, 0), 2);
-            }
-            std::cout << hitung << std::endl;
+        if (foundPeak && !detectingPeak) {
+            peakCount++;
+
+            auto currentCollisionTime = std::chrono::system_clock::now();
+            std::chrono::duration<float> durationRR = currentCollisionTime - lastCollisionTimeRR;
+            float durationInSecondsRR = durationRR.count();
+            calculateRR(durationInSecondsRR, RR_);
+            lastCollisionTimeRR = currentCollisionTime; 
+
+            detectingPeak = true;
+        } else if (!foundPeak) {
+            detectingPeak = false;
         }
 
         end = clock();
         float scale = 0.5;
         cv::resize(frameClone, frameClone, cv::Size(frameClone.cols*scale, frameClone.rows*scale));
-
         double sc = (double(end) - double(start)) / double(CLOCKS_PER_SEC);
         fpsLive = double(num_frames) / double(sc);
-
         cv::imshow("Inference", frameClone);
 
         if(waitKey(1) == 27) break;
@@ -198,3 +168,4 @@ int main(int argc, char **argv) {
 
     return 0;
 }
+
